@@ -1,0 +1,19 @@
+---
+- hosts: kubernetes-master-nodes
+  vars_files:
+    - env_variables
+  remote_user: "{{ USER }}"
+  tasks:
+    - name: "Download calico yaml"
+      become: yes
+      shell:
+        cmd: "curl https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml -o {{ HOME }}/calico.yaml"
+
+    - name: "kubectl apply"
+      shell:
+        cmd: kubectl apply -f calico.yaml
+
+    - name: "Deleting yaml"
+      file:
+        path: "{{ HOME }}/calico.yaml"
+        state: absent

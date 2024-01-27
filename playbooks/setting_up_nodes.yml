@@ -1,0 +1,76 @@
+---
+- hosts: all
+  vars_files:
+    - env_variables
+  tasks:
+    - name: "apt update and installing for kubernetes repository"
+      become: true
+      apt:
+        name: "{{ item  }}"
+        state: latest
+        update_cache: true
+      with_items: "{{ aptrepo }}"
+
+    - name: "Deleting a repository file for kubernetes if exists"
+      become: true
+      ignore_errors: true
+      file:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        state: absent
+
+    - name: "Creating a repository file for kubernetes"
+      become: true
+      file:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        state: touch
+
+    - name: "Adding repository details in kubernetes repo file"
+      become: true
+      blockinfile:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        block: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ item }}/deb/ /"
+        marker: ""
+      with_items: "{{ k8s_version }}"
+
+    - name: "Remove blank lines blockinfile repo file"
+      become: true
+      ansible.builtin.lineinfile:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        state: absent
+        regexp: "^$"
+
+    - name: "Onetime deleting gpgkey"
+      become: true
+      ignore_errors: true
+      file:
+        path: /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+        state: absent
+
+    - name: "Deleting keyring if exists"
+      become: true
+      ignore_errors: true
+      file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        state: absent
+
+    - name: "Adding lines to public signin key"
+      become: true
+      shell:
+        cmd: "curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg"
+      with_items: "{{ k8s_version }}"
+
+    - name: Installing required packages
+      become: true
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: latest
+        update_cache: true
+      with_items: "{{ packages }}"
+
+    - name: Starting and Enableing the required services
+      become: true
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      with_items: "{{ services }}"

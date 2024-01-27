@@ -1,0 +1,44 @@
+---
+- hosts: kubernetes-master-nodes
+  vars_files:
+    - env_variables
+  become: true
+  tasks:
+    - name: "Storing Join Command"
+      shell: "kubeadm token create --print-join-command > {{ HOME }}/{{ token_file  }}"
+    
+    - name: "Copying tokenfile to Local"
+      fetch:
+        src: "{{ HOME }}/{{ token_file }}"
+        dest: "{{ token_file }}"
+        flat: true
+        remote_src: true
+
+- hosts: kubernetes-worker-nodes
+  become: true
+  vars_files:
+    - env_variables
+  tasks:
+    - name: "Copying token to worker nodes"
+      become: true
+      copy:
+        src: "{{ token_file }}"
+        dest: "{{ token_file }}"
+        owner: "{{ USER }}"
+        group: "{{ USER }}"
+        mode: "0755"
+
+    - name: "Joining Worker Nodes iwth Kubernetes master"
+      become: true
+      shell: 
+        cmd: "{{ HOME }}/{{ token_file }}"
+      register: output
+
+    - name: "Storing Logs and Generated token for future purpose."
+      local_action: copy content={{ output.stdout }} dest=node_joined.log
+
+    - name: "Clearing Token File"
+      file:
+        path: "{{ token_file }}"
+        state: "absent"
+

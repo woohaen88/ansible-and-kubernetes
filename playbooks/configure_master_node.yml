@@ -1,0 +1,69 @@
+---
+- hosts: kubernetes-master-nodes
+  vars_files:
+    - env_variables
+  tasks:
+    - name: Pulling images required for setting up a Kubernetes cluster
+      become: true
+      shell: kubeadm config images pull
+
+    - name: Initializing Kubernetes cluster
+      become: true
+      shell: kubeadm init --apiserver-advertise-address {{ad_addr}} --pod-network-cidr={{cidr_v}}
+      register: output
+
+    - name: Storing Logs and Generated token for future purpose.
+      become: true
+      local_action: copy content={{ output.stdout }} dest={{ token_file }}
+
+    - name: "Create Directory {{ HOME }}/.kube/config"
+      ignore_errors: true
+      become: true
+      file:
+        path: "{{ HOME }}/.kube"
+        state: directory
+        mode: "0755"
+        owner: "{{ USER }}"
+        group: "{{ USER }}"
+
+    - name: "Delete File /etc/kubernetes/admin.conf if exist!"
+      become: true
+      ignore_errors: true
+      file:
+        path: "{{ HOME }}/.kube/config"
+        state: absent
+
+    - name: "Copy File /etc/kubernetes/admin.conf"
+      become: true
+      copy:
+        src: "/etc/kubernetes/admin.conf"
+        dest: "{{ HOME }}/.kube/config"
+        owner: "{{ USER }}"
+        group: "{{ USER }}"
+        remote_src: true
+
+    - name: Copying files from remote server
+      become: true
+      ansible.builtin.fetch:
+        src: "/etc/kubernetes/admin.conf"
+        dest: "{{ HOME }}/.kube/config"
+        flat: true
+
+- hosts: kubernetes-bestion-nodes
+  vars_files:
+    - env_variables
+  remote_user: "{{ USER }}"
+  tasks:
+    - name: "Change Modify .kube"
+      ignore_errors: true
+      become: true
+      shell:
+        cmd: "chown -R {{ USER }}:{{USER}} {{ HOME }}/.kube"
+
+    - name: "Install kubectl auto complete"
+      become: true
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        update_cache: true
+        state: latest
+      with_items: "{{ kubectl_auto_complete }}"

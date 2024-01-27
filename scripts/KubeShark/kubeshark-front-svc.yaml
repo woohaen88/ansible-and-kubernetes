@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    meta.helm.sh/release-name: kubeshark
+    meta.helm.sh/release-namespace: default
+  creationTimestamp: "2024-01-27T06:37:08Z"
+  labels:
+    app.kubernetes.io/instance: kubeshark
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: kubeshark
+    app.kubernetes.io/version: 52.1.9
+    helm.sh/chart: kubeshark-52.1.9
+  name: kubeshark-front
+  namespace: default
+  resourceVersion: "28823"
+  uid: 2082b9db-bfe3-4581-aeb1-c875002df5d2
+spec:
+  clusterIP: 10.111.190.172
+  clusterIPs:
+  - 10.111.190.172
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: kubeshark-front
+    nodePort: 30005
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app.kubeshark.co/app: front
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}

@@ -1,0 +1,3 @@
+ansible-playbook settingup_k8s_cluster.yml
+ansible-playbook clear_k8s_cluster.yml
+ansible-playbook join_kubernetes_workers_nodes.yml

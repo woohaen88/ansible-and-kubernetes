@@ -1,0 +1,83 @@
+VM_BOX = "bento/ubuntu-22.04"
+VM_BOX_VERSION = "202309.08.0"
+BESTION_IP     = "192.168.56.99"
+MASTER_IP      = "192.168.56.100"
+NODE1_IP       = "192.168.56.101"
+NODE2_IP       = "192.168.56.102"
+
+HOSTNAME_01 = "k8s-bestion"
+HOSTNAME_02 = "k8s-master"
+HOSTNAME_03 = "k8s-worker-01"
+HOSTNAME_04 = "k8s-worker-02"
+
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+
+  config.vm.define "k8s-bestion" do |bestion|
+    bestion.vm.box = VM_BOX
+    bestion.vm.box_version = VM_BOX_VERSION
+
+    bestion.vm.network "private_network", ip: BESTION_IP
+    # bestion.vm.network :public_network, :bridge => 'en0: Wi-Fi'
+    bestion.vm.hostname = HOSTNAME_01
+
+    bestion.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = '2'
+    end
+    bestion.vm.provision "shell", inline: <<-SHELL
+    apt-get update
+    apt-get install -y ansible git
+    cd /home/vagrant
+    git clone https://github.com/woohaen88/ansible-and-kubernetes.git
+    SHELL
+  end
+
+  config.vm.define "k8s-master" do |master|
+    master.vm.box = VM_BOX
+    master.vm.box_version = VM_BOX_VERSION
+
+    master.vm.network "private_network", ip: MASTER_IP
+    # master.vm.network :public_network, :bridge => 'en0: Wi-Fi'
+    master.vm.hostname = HOSTNAME_02
+
+    master.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = '2'
+    end
+  end
+
+  config.vm.define "k8s-worker-01" do |node1|
+    node1.vm.box = VM_BOX
+    node1.vm.box_version = VM_BOX_VERSION
+
+    node1.vm.network "private_network", ip: NODE1_IP
+    # node1.vm.network :public_network, :bridge => 'en0: Wi-Fi'
+    node1.vm.hostname = HOSTNAME_03
+
+    node1.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = '2'
+    end
+  end
+
+  config.vm.define "k8s-worker-02" do |node2|
+    node2.vm.box = VM_BOX
+    node2.vm.box_version = VM_BOX_VERSION
+
+    node2.vm.network "private_network", ip: NODE2_IP
+    # node2.vm.network :public_network, :bridge => 'en0: Wi-Fi'
+    node2.vm.hostname = HOSTNAME_04
+
+    node2.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = '2'
+    end
+  end
+end

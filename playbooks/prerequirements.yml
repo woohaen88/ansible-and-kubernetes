@@ -1,0 +1,255 @@
+---
+- hosts: all
+  vars_files:
+    - env_variables
+  tasks:
+    - name: "Disabling Firewall"
+      become: true
+      community.general.ufw:
+        state: disabled
+
+    - name: "Disabling Swap on all nodes"
+      become: true
+      shell:
+        cmd: swapoff -a
+
+    - name: "Commenting Swap entries in /etc/fstab"
+      become: true
+      replace:
+        path: /etc/fstab
+        regexp: "(.*swap*)"
+        replace: '#\1'
+
+    - name: "Deleting GPG KEY if exists"
+      become: true
+      ignore_errors: true
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+        state: absent
+
+    - name: "Deleting docker if exists"
+      become: true
+      ignore_errors: true
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
+        state: absent
+
+    - name: "Deleting kubernetes if exists"
+      become: true
+      ignore_errors: true
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        state: absent
+
+    - name: "Installing NTP"
+      become: true
+      ansible.builtin.apt:
+        name: ntp
+        update_cache: true
+        state: latest
+
+    - name: "Syncronize date"
+      become: true
+      shell:
+        cmd: ntpq -p
+
+    - name: "Restarting NTP service"
+      become: true
+      service:
+        name: ntp
+        state: restarted
+        enabled: true
+
+    - name: "Set /proc/sys/net/ipv4/ip_forward to 1"
+      become: true
+      shell:
+        cmd: echo '1' > /proc/sys/net/ipv4/ip_forward
+
+    - name: "Configuring container runtime using containerd"
+      become: true
+      file:
+        path: /etc/modules-load.d/containerd.conf
+        state: touch
+
+    - name: "Adding Configuring container runtime using containerd"
+      become: true
+      blockinfile:
+        path: /etc/modules-load.d/containerd.conf
+        block: |
+          overlay
+          br_netfilter
+
+    - name: "Register the modules required by modprobe in order to the kernel"
+      become: true
+      shell:
+        cmd: |
+          modprobe overlay
+          modprobe br_netfilter
+
+    - name: "Create /etc/sysctl.d/99-kubernetes-cri.conf"
+      become: true
+      file:
+        path: /etc/sysctl.d/99-kubernetes-cri.conf
+        state: touch
+
+    - name: "Setting /etc/sysctl.d/99-kubernetes-cri.conf"
+      become: true
+      blockinfile:
+        path: /etc/sysctl.d/99-kubernetes-cri.conf
+        block: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.ipv4.ip_forward                 = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+
+    - name: "Create /etc/modules-load.d/k8s.conf"
+      become: true
+      file:
+        path: /etc/modules-load.d/k8s.conf
+        state: touch
+
+    - name: "Setting /etc/modules-load.d/k8s.conf"
+      become: true
+      blockinfile:
+        path: /etc/modules-load.d/k8s.conf
+        block: br_netfilter
+
+    - name: "Create /etc/sysctl.d/k8s.conf"
+      become: true
+      file:
+        path: /etc/sysctl.d/k8s.conf
+        state: touch
+
+    - name: "Setting /etc/sysctl.d/k8s.conf"
+      become: true
+      blockinfile:
+        path: /etc/sysctl.d/k8s.conf
+        block: |
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.ipv4.ip_forward                 = 1
+
+    - name: "docker and containerd repository update"
+      become: true
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        update_cache: true
+        state: latest
+      with_items: "{{ aptrepo }}"
+
+    - name: "apt keyring update"
+      become: true
+      shell:
+        cmd: install -m 0755 -d /etc/apt/keyrings
+
+    - name: "Remove Docker GPG if exists"
+      ignore_errors: true
+      become: true
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/docker.gpg
+        state: absent
+
+    - name: "Add Docker GPG apt Key"
+      become: true
+      shell:
+        cmd: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    - name: "Change GPG KEY mode"
+      become: true
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/docker.gpg
+        mode: a+r
+
+    - name: "Remove Docker Repository"
+      ignore_errors: true
+      become: true
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
+        state: absent
+
+    - name: "Add Docker Repository"
+      become: true
+      ansible.builtin.shell:
+        cmd: |
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    - name: "Update apt and install docker and containerd"
+      become: true
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: latest
+        update_cache: true
+      with_items: "{{ containerd_packages }}"
+
+    - name: "Make Configuration of containerd"
+      become: true
+      command: sh -c "containerd config default > /etc/containerd/config.toml"
+
+    - name: "replace SystemdCgroup false => true"
+      become: true
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: "(.SystemdCgroup = false)"
+        replace: "SystemdCgroup = true"
+
+    - name: "Restart Containred Service"
+      become: true
+      service:
+        name: containerd
+        enabled: true
+        state: restarted
+
+    - name: "Delete docker daemon.json"
+      ignore_errors: true
+      become: true
+      file:
+        path: /etc/docker/daemon.json
+        state: absent
+
+    - name: "Create docker daemon.json"
+      become: true
+      file:
+        path: /etc/docker/daemon.json
+        state: touch
+
+    - name: "Adding line daemon.json"
+      become: true
+      blockinfile:
+        path: /etc/docker/daemon.json
+        block: |
+          {
+          "exec-opts": ["native.cgroupdriver=systemd"],
+          "log-driver": "json-file",
+          "log-opts": {
+            "max-size": "100m"
+            },
+          "storage-driver": "overlay2"
+          }
+        marker: ""
+
+    - name: "Remove black lines blockinfile put in"
+      become: true
+      ansible.builtin.lineinfile:
+        path: /etc/docker/daemon.json
+        state: absent
+        regexp: "^$"
+
+    - name: "Useradd docker -> vagrant"
+      become: true
+      shell:
+        cmd: |
+          usermod -aG docker vagrant
+          systemctl daemon-reload
+
+    - name: "Restart Docker Service"
+      become: true
+      service:
+        name: docker
+        enabled: true
+        state: restarted
+
+    - name: "Restart Containred Service"
+      become: true
+      service:
+        name: containerd
+        enabled: true
+        state: restarted

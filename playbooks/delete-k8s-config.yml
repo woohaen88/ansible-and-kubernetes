@@ -1,0 +1,42 @@
+---
+- hosts: all
+
+  vars:
+    packages:
+      - docker*
+      - kubeadm
+      - kubectl
+      - kubelet
+
+  tasks:
+    - name: "Kubeadm reset"
+      ignore_errors: true
+      become: true
+      ansible.builtin.shell:
+        cmd: yes | kubeadm reset
+
+    - name: "Removing Repo File of Kubernetes."
+      ignore_errors: true
+      become: true
+      file:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        state: absent
+
+    - name: "Uninstalling kubernetes related packages"
+      ignore_errors: true
+      become: true
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: absent
+      with_items: "{{ packages }}"
+
+    - name: "Removing required files"
+      ignore_errors: true
+      become: true
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /etc/kubernetes/
+        - /var/lib/etcd/
+        - $HOME/.kube/
