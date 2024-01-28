@@ -1,2 +1,5 @@
 ﻿vagrant/.vagrant
 scripts/dashboard_rabc/.DS_Store
+whoopii_rsa.ppk
+whoopii_rsa.pub
+sample.sh
